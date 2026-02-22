@@ -1,0 +1,20 @@
+/**
+ * LSP-compliant: returns error result instead of throwing when
+ * phone format is invalid. Does NOT tighten preconditions.
+ */
+public class WhatsAppSender extends NotificationSender {
+    public WhatsAppSender(AuditLog audit) {
+        super(audit);
+    }
+
+    @Override
+    public SendResult send(Notification n) {
+        if (n.phone == null || !n.phone.startsWith("+")) {
+            audit.add("WA failed");
+            return SendResult.error("phone must start with + and country code");
+        }
+        System.out.println("WA -> to=" + n.phone + " body=" + n.body);
+        audit.add("wa sent");
+        return SendResult.ok();
+    }
+}
