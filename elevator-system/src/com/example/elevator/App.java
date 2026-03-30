@@ -2,53 +2,124 @@ package com.example.elevator;
 
 import java.util.*;
 
+/**
+ * Demo application for the Elevator System showing all requirements:
+ *
+ * 1. Outside buttons (UP/DOWN) — controls all carts, on every floor
+ * 2. Inside buttons: floor, open, close, emergency — only 1 elevator
+ * 3. Inside alarm button — that particular elevator stops and rings alarm
+ * 4. Weight limit per cart (variable) — overweight → stops, opens, alarm
+ * 5. Maintenance state — elevator will not move (handled by operator)
+ * 6. Elevator states: UP, DOWN, IDLE, MAINTENANCE
+ */
 public class App {
     public static void main(String[] args) {
-        System.out.println("=== Elevator System ===\n");
+        System.out.println("═══════════════════════════════════════════════");
+        System.out.println("           Elevator System (LLD)              ");
+        System.out.println("═══════════════════════════════════════════════\n");
 
-        // --- Create 3 elevators for a 10-floor building ---
+        // ─── Create 3 elevators with DIFFERENT weight limits ────
         int minFloor = 0, maxFloor = 10;
         List<Elevator> elevators = Arrays.asList(
-                new Elevator(1, minFloor, maxFloor),
-                new Elevator(2, minFloor, maxFloor),
-                new Elevator(3, minFloor, maxFloor)
+                new Elevator(1, minFloor, maxFloor, 700),   // 700 kg limit
+                new Elevator(2, minFloor, maxFloor, 500),   // 500 kg limit
+                new Elevator(3, minFloor, maxFloor, 800)    // 800 kg limit
         );
 
         ElevatorController controller = new ElevatorController(elevators, new LookAheadStrategy());
         Building building = new Building("Tech Park Tower", maxFloor, controller);
 
-        // --- Scenario 1: Simple hall call ---
-        System.out.println("--- Scenario 1: Person on floor 5 wants to go UP ---");
+        // ═══════════════════════════════════════════════════════════
+        //  SCENARIO 1: Basic hall call + inside floor button
+        // ═══════════════════════════════════════════════════════════
+        System.out.println("═══ Scenario 1: Hall call (outside UP button) + Floor button (inside) ═══");
+        System.out.println("  Person on floor 5 presses UP (outside button → controls all carts)");
         building.callElevator(5, Direction.UP);
-        // Passenger enters and presses floor 8
+        // After pickup, passenger presses floor 8 (inside button → controls only Elevator-1)
         building.pressFloor(1, 8);
         building.simulate(9);
 
-        // --- Scenario 2: Multiple simultaneous requests ---
-        System.out.println("\n\n--- Scenario 2: Multiple hall calls ---");
-        building.callElevator(3, Direction.UP);     // Person on floor 3 wants UP
-        building.callElevator(7, Direction.DOWN);   // Person on floor 7 wants DOWN
-        building.callElevator(1, Direction.UP);     // Person on floor 1 wants UP
+        // ═══════════════════════════════════════════════════════════
+        //  SCENARIO 2: Open/Close door buttons inside elevator
+        // ═══════════════════════════════════════════════════════════
+        System.out.println("\n\n═══ Scenario 2: Open/Close door buttons (inside) ═══");
+        // Elevator-1 is at floor 8, someone presses open door
+        building.pressOpenDoor(1);
+        // Then presses close door
+        building.pressCloseDoor(1);
 
-        // After dispatching, passengers press their destinations
-        building.pressFloor(1, 3);   // Elevator 1 is heading to floor 3
-        building.pressFloor(2, 7);   // Elevator 2 is heading to floor 7
-        building.pressFloor(3, 1);   // Elevator 3 is heading to floor 1
+        // ═══════════════════════════════════════════════════════════
+        //  SCENARIO 3: Alarm button — that particular elevator stops
+        // ═══════════════════════════════════════════════════════════
+        System.out.println("\n\n═══ Scenario 3: Alarm button pressed (inside Elevator-2) ═══");
+        // First, make elevator 2 move
+        building.callElevator(3, Direction.UP);
+        building.simulate(1);
+        // Now press alarm on Elevator-2
+        building.pressAlarm(2);
+        System.out.println("\n  Status after alarm:");
+        controller.status();
+        // Elevator-2 should not move even during simulation
+        System.out.println("\n  Simulating 2 steps — Elevator-2 should NOT move:");
+        building.simulate(2);
+        // Operator resets alarm
+        System.out.println("\n  Operator resets alarm on Elevator-2:");
+        building.resetAlarm(2);
+        controller.status();
 
-        // Simulate enough steps for all to reach
+        // ═══════════════════════════════════════════════════════════
+        //  SCENARIO 4: Weight limit (overweight → stops, opens, alarm)
+        // ═══════════════════════════════════════════════════════════
+        System.out.println("\n\n═══ Scenario 4: Overweight (Elevator-2 limit=500kg, load=600kg) ═══");
+        building.updateWeight(2, 600);  // Exceeds 500kg limit
+        System.out.println("\n  Status after overweight:");
+        controller.status();
+        // Fix: reduce weight
+        System.out.println("\n  Passenger exits, weight now 400kg:");
+        building.updateWeight(2, 400);
+        controller.status();
+
+        // ═══════════════════════════════════════════════════════════
+        //  SCENARIO 5: Maintenance mode — elevator will not move
+        // ═══════════════════════════════════════════════════════════
+        System.out.println("\n\n═══ Scenario 5: Maintenance mode (Elevator-3) ═══");
+        building.setMaintenance(3);
+        System.out.println("\n  All elevators down to 2, dispatching hall call:");
+        building.callElevator(7, Direction.DOWN);
+        // Elevator-3 should NOT be chosen
+        controller.status();
+        building.simulate(3);
+
+        // Operator clears maintenance
+        System.out.println("\n  Operator clears maintenance on Elevator-3:");
+        building.clearMaintenance(3);
+        controller.status();
+
+        // ═══════════════════════════════════════════════════════════
+        //  SCENARIO 6: Emergency button
+        // ═══════════════════════════════════════════════════════════
+        System.out.println("\n\n═══ Scenario 6: Emergency button (inside Elevator-1) ═══");
+        building.pressFloor(1, 5);  // Elevator-1 heading to floor 5
+        building.simulate(1);
+        // Press emergency mid-way
+        building.pressEmergency(1);
+        System.out.println("\n  Status after emergency:");
+        controller.status();
+        // Reset
+        building.resetAlarm(1);
+
+        // ═══════════════════════════════════════════════════════════
+        //  SCENARIO 7: Multiple hall calls — system dispatches to
+        //              different elevators
+        // ═══════════════════════════════════════════════════════════
+        System.out.println("\n\n═══ Scenario 7: Multiple simultaneous hall calls ═══");
+        building.callElevator(2, Direction.UP);
+        building.callElevator(9, Direction.DOWN);
+        building.callElevator(6, Direction.UP);
         building.simulate(10);
 
-        // --- Scenario 3: Passengers inside press destinations ---
-        System.out.println("\n\n--- Scenario 3: Cabin button presses after pickup ---");
-        // After elevator 1 picks up at floor 3, passenger wants floor 9
-        building.pressFloor(1, 9);
-        // After elevator 2 picks up at floor 7, passenger wants floor 2
-        building.pressFloor(2, 2);
-        // After elevator 3 picks up at floor 1, passenger wants floor 6
-        building.pressFloor(3, 6);
-
-        building.simulate(10);
-
-        System.out.println("\n=== Simulation Complete ===");
+        System.out.println("\n═══════════════════════════════════════════════");
+        System.out.println("            Simulation Complete!               ");
+        System.out.println("═══════════════════════════════════════════════");
     }
 }
